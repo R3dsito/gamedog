@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buscador de Juegos</title>
+  <style>
+    /* Estilos para el contenedor de sugerencias */
+    .suggestions {
+      border: 1px solid #ccc;
+      max-height: 200px;
+      overflow-y: auto;
+      position: absolute;
+      background-color: white;
+      z-index: 1000;
+      width: 100%;
+    }
+
+    .suggestion-item {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      cursor: pointer;
+    }
+
+    .suggestion-item img {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      margin-right: 10px;
+    }
+
+    .suggestion-item:hover {
+      background-color: #f0f0f0;
+    }
+
+    .suggestion-item div {
+      display: inline-block;
+    }
+
+    /* Estilos para la vista detallada */
+    .game-details {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+    }
+
+    .game-details img {
+      object-fit: cover;
+      display: block;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Buscador de Juegos</h1>
+
+  <!-- Campo de búsqueda -->
+  <input type="text" id="gameName" placeholder="Escribe el nombre del juego" oninput="fetchSuggestions()">
+  
+  <!-- Contenedor de sugerencias -->
+  <div id="suggestions" class="suggestions"></div>
+
+  <!-- Contenedor para mostrar los detalles del juego seleccionado -->
+  <div id="gameDetails" class="game-details"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script>
+    let timeout = null;
+
+    async function fetchSuggestions() {
+      const gameName = document.getElementById('gameName').value;
+
+      // Si no hay texto, limpia las sugerencias
+      if (!gameName) {
+        document.getElementById('suggestions').innerHTML = '';
+        return;
+      }
+
+      // Realiza la búsqueda después de un retraso (para evitar demasiadas solicitudes)
+      clearTimeout(timeout);
+      timeout = setTimeout(async () => {
+        try {
+          const response = await axios.get(`http://localhost:3306/search?name=${gameName}`);
+
+          // Limpiar sugerencias anteriores
+          const suggestionsContainer = document.getElementById('suggestions');
+          suggestionsContainer.innerHTML = '';
+
+          // Mostrar nuevas sugerencias
+          response.data.forEach(game => {
+            const suggestionItem = document.createElement('div');
+            suggestionItem.className = 'suggestion-item';
+
+            // Comprobar si el juego tiene cover
+            const coverUrl = game.cover
+              ? `https://images.igdb.com/igdb/image/upload/t_thumb/${game.cover.image_id}.jpg` //https://images.igdb.com/igdb/image/upload/t_thumb/${game.cover.image_id}.jpg
+              : 'https://via.placeholder.com/50'; // Imagen de placeholder si no hay cover
+
+            // Agregar la imagen y el nombre del juego en el elemento
+            suggestionItem.innerHTML = `
+              <img src="${coverUrl}" alt="${game.name}">
+              <div>${game.name}</div>
+            `;
+
+            // Agregar evento para seleccionar una sugerencia
+            suggestionItem.onclick = () => {
+              document.getElementById('gameName').value = game.name;
+              suggestionsContainer.innerHTML = '';
+              // Llamar a la función que mostrará los detalles del juego
+              showGameDetails(game.id);
+            };
+
+            suggestionsContainer.appendChild(suggestionItem);
+          });
+
+        } catch (error) {
+          console.error('Error al hacer la búsqueda:', error.response ? error.response.data : error.message);
+        }
+      }, 300); // 300 ms de retraso
+    }
+
+    // Función para mostrar los detalles del juego seleccionado
+    async function showGameDetails(gameId) {
+      try {
+        // Realizar la solicitud para obtener detalles del juego por su ID
+        const response = await axios.get(`http://localhost:3306/game/${gameId}`);
+        const game = response.data;
+
+        // Construir la URL de la portada
+        const coverUrl = game.cover
+          ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`
+          : 'https://via.placeholder.com/150'; // Imagen de placeholder si no hay cover
+
+        // Mostrar los detalles del juego
+        const gameDetailsContainer = document.getElementById('gameDetails');
+        gameDetailsContainer.innerHTML = `
+          <h2>${game.name}</h2>
+          <img src="${coverUrl}" alt="${game.name}">
+          <p><strong>Géneros:</strong> ${game.genres ? game.genres.map(genre => genre.name).join(', ') : 'N/A'}</p>
+          <p><strong>Plataformas:</strong> ${game.platforms ? game.platforms.map(platform => platform.name).join(', ') : 'N/A'}</p>
+          <p><strong>Calificación:</strong> ${game.rating ? game.rating.toFixed(2) : 'N/A'}</p>
+          <p><strong>Fecha de lanzamiento:</strong> ${game.release_dates ? new Date(game.release_dates[0].human).toLocaleDateString() : 'N/A'}</p>
+        `;
+
+      } catch (error) {
+        console.error('Error al obtener detalles del juego:', error.response ? error.response.data : error.message);
+      }
+    }
+  </script>
+
+</body>
+</html>
